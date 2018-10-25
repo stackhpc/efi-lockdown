@@ -1,0 +1,27 @@
+---
+# defaults file for efi-lockdown
+
+lockdown_efi_shell_binary: https://github.com/tianocore/edk2/blob/master/ShellBinPkg/UefiShell/X64/Shell.efi
+
+lockdown_sbsigntools_repo: https://git.kernel.org/pub/scm/linux/kernel/git/jejb/sbsigntools.git
+
+lockdown_efitools_repo: git://git.kernel.org/pub/scm/linux/kernel/git/jejb/efitools.git
+
+lockdown_cd_output_path: "~/efi-lockdown.iso"
+
+lockdown_git_repos:
+  - name: sbsigntools
+    repo: "{{ lockdown_sbsigntools_repo }}"
+  - name: efitools
+    repo: "{{ lockdown_efitools_repo }}"
+
+lockdown_cache_path: ~/.lockdown
+
+lockdown_efi_shell_path: "{{ lockdown_cache_path }}/shell.efi"
+
+lockdown_package_dependencies:
+  - gnu-efi-devel
+  - help2man
+  - perl-File-Slurp
+  - automake
+  - genisoimage # to create a bootable cd image

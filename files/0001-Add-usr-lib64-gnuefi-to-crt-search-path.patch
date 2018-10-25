@@ -1,0 +1,27 @@
+From 4279efa6364465da1b2e4e87e3536cd6bfa900c6 Mon Sep 17 00:00:00 2001
+From: Will Szumski <will@stackhpc.com>
+Date: Thu, 25 Oct 2018 10:04:53 +0000
+Subject: [PATCH] Add /usr/lib64/gnuefi to crt search path
+
+crt0-efi-$EFI_ARCH.o is located in /usr/lib64/gnuefi on CentOS
+7.5. This path is not searched by default.
+---
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index bce6f0e..e5253f0 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -70,7 +70,7 @@ AM_CONDITIONAL(TEST_BINARY_FORMAT, [ test "$EFI_ARCH" = "arm" -o "$EFI_ARCH" = "
+ ##
+ # no consistent view of where gnu-efi should dump the efi stuff, so find it
+ ##
+-for path in /lib /lib64 /usr/lib /usr/lib64 /usr/lib32 /lib/efi /lib64/efi /usr/lib/efi /usr/lib64/efi; do
++for path in /lib /lib64 /usr/lib /usr/lib64 /usr/lib32 /lib/efi /lib64/efi /usr/lib/efi /usr/lib64/efi /usr/lib64/gnuefi ; do
+     if test -e $path/crt0-efi-$EFI_ARCH.o; then
+        CRTPATH=$path
+     fi
+-- 
+1.8.3.1
+

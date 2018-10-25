@@ -1,0 +1,124 @@
+---
+# tasks file for efi-lockdown
+
+# TODO: more architectures other than x86_64
+# TODO: provide own keys instead of using generated ones
+
+- name: make sure cache directory exists
+  file:
+    state: directory
+    path: "{{ lockdown_cache_path }}"
+
+- name: download efi shell binary
+  get_url:
+    url: "{{ lockdown_efi_shell_binary }}"
+    dest: "{{ lockdown_efi_shell_path }}"
+
+- name: install build dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ lockdown_package_dependencies }}"
+  become: true
+
+- name: test if sbsign binary exists
+  stat:
+    path: "{{ lockdown_cache_path }}/sbsigntools/src/sbsign"
+  register: sbsign
+  tags: always
+
+- name: build sbsigntools
+  block:
+    - name: clone source code
+      git:
+        repo: "{{ lockdown_sbsigntools_repo }}"
+        dest: "{{ working_dir }}"
+        force: true
+        update: true
+    - name: patch configure.ac
+      patch:
+        src: 0001-Add-usr-lib64-gnuefi-to-crt-search-path.patch
+        basedir: "{{ working_dir }}"
+        strip: 1
+      when: ansible_os_family == "RedHat"
+
+    - name: run autogen.sh
+      command: ./autogen.sh
+      args:
+        chdir:  "{{ working_dir }}"
+
+    - name: run ./configure
+      command: ./configure
+      args:
+        chdir:  "{{ working_dir }}"
+
+    - name: run make
+      command: make
+      args:
+        chdir: "{{ working_dir }}"
+      tags: compile
+  vars:
+    working_dir: "{{ lockdown_cache_path }}/sbsigntools"
+  when: not sbsign.stat.exists
+
+- name: build efi tools
+  block:
+  - name: clone source code
+    git:
+      repo: "{{ lockdown_efitools_repo }}"
+      dest: "{{ working_dir }}"
+      force: true
+      update: true
+ 
+  - name: compile efitools
+    shell: PATH={{ lockdown_cache_path }}/sbsigntools/src:{{ ansible_env.PATH }} make
+    args:
+      chdir: "{{ working_dir }}"
+    environment:
+      # Ideally we would set PATH here, but this does not seem to take effect. So
+      # as a workaround we use shell and set path manually.
+      PATH: '{{ lockdown_cache_path }}/sbsigntools/src:{{ ansible_env.PATH }}'
+    tags: compile
+  vars:
+    working_dir: "{{ lockdown_cache_path }}/efitools"
+
+- name: test if lockdown iso exists
+  stat:
+    path: "{{ lockdown_cd_output_path }}"
+  register: lockdown_cd_output_stat
+  tags: always
+
+- block:
+  - name: create temporary working directory
+    tempfile:
+      state: directory
+      suffix: build
+    register: working_dir
+
+  - name: create efi directory
+    file:
+      state: directory
+      path: "{{ working_dir.path }}/efi/boot"
+
+  - name: copy efi shell to working directory
+    copy:
+      src: "{{ lockdown_efi_shell_path }}"
+      dest: "{{ working_dir.path }}/efi/boot/bootx64.efi"
+      remote_src: true
+
+  - name: copy lockdown binary to working dir
+    copy:
+      src: "{{ lockdown_cache_path }}/efitools/LockDown-signed.efi"
+      dest: "{{ working_dir.path }}"
+      remote_src: true
+
+  - name: create bootable cd
+    command: mkisofs -o {{ lockdown_cd_output_path }} {{ working_dir.path }}
+
+  always:
+  # clean up
+  - name: delete working directory
+    file:
+      state: absent
+      path: working_dir.path
+  when: not lockdown_cd_output_stat.stat.exists
